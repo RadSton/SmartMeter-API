@@ -1,6 +1,8 @@
 const fetch = require("node-fetch");
 const basicCookieManager = require("./lib/cookies");
 
+const LOGGING = false;
+
 const _request = (method, url, cookies, body) => {
     return fetch(url, {
         "headers": {
@@ -22,7 +24,7 @@ const _request = (method, url, cookies, body) => {
         "method": method
     });
 }
-const request = (method, url, body) => {
+module.exports.request = (method, url, body) => {
     let cookieAddress = url.split(":")[0] + "://" + url.split("/")[2] + "/";
 
     return new Promise((res, rej) => {
@@ -48,18 +50,18 @@ const request = (method, url, body) => {
 
 let loginData, bussinespartnerData, meteringEndpoints;
 
-const login = async (username, password) => {
+module.exports.login = async (username, password) => {
     const Login = await request("POST", "https://smartmeter.netz-noe.at/orchestration/Authentication/Login", '{"user":"' + username + '","pwd":"' + password + '"}');
-    console.debug("POST Login:", Login.statusText, "(" + Login.status + ")");
+    if (LOGGING) console.debug("POST Login:", Login.statusText, "(" + Login.status + ")");
     const GetBasicInfo = await request("GET", "https://smartmeter.netz-noe.at/orchestration/User/GetBasicInfo", null);
-    console.debug("GET GetBasicInfo:", GetBasicInfo.statusText, "(" + GetBasicInfo.status + ")");
+    if (LOGGING) console.debug("GET GetBasicInfo:", GetBasicInfo.statusText, "(" + GetBasicInfo.status + ")");
 
     // probably not needed // does nothing ? 
     const NumberOfDataEntries = await request("GET", "https://smartmeter.netz-noe.at/orchestration/CCM/NumberOfDataEntries", null);
-    console.debug("GET NumberOfDataEntries:", NumberOfDataEntries.statusText, "(" + NumberOfDataEntries.status + ")");
+    if (LOGGING) console.debug("GET NumberOfDataEntries:", NumberOfDataEntries.statusText, "(" + NumberOfDataEntries.status + ")");
     // probably not needed // does nothing ? 
     const ExtendSessionLifetime = await request("GET", "https://smartmeter.netz-noe.at/orchestration/Authentication/ExtendSessionLifetime", null);
-    console.debug("GET ExtendSessionLifetime:", ExtendSessionLifetime.statusText, "(" + ExtendSessionLifetime.status + ")");
+    if (LOGGING) console.debug("GET ExtendSessionLifetime:", ExtendSessionLifetime.statusText, "(" + ExtendSessionLifetime.status + ")");
 
     if (GetBasicInfo.status === 200)
         loginData = JSON.parse(GetBasicInfo.finalText);
@@ -68,16 +70,16 @@ const login = async (username, password) => {
     return loginData;
 }
 
-const getMeteringEndpoints = async () => {
+module.exports.getMeteringEndpoints = async () => {
     if (!loginData.gpNummer) return { error: "GP-ID is not avalable!" }
 
     // probably not needed // does nothing ? 
     const ExtendSessionLifetime = await request("GET", "https://smartmeter.netz-noe.at/orchestration/Authentication/ExtendSessionLifetime", null);
-    console.debug("GET ExtendSessionLifetime:", ExtendSessionLifetime.statusText, "(" + ExtendSessionLifetime.status + ")");
+    if (LOGGING) console.debug("GET ExtendSessionLifetime:", ExtendSessionLifetime.statusText, "(" + ExtendSessionLifetime.status + ")");
 
     if (!bussinespartnerData) {
         const GetAccountIdByBussinespartnerId = await request("GET", "https://smartmeter.netz-noe.at/orchestration/User/GetAccountIdByBussinespartnerId", null);
-        console.debug("GET GetAccountIdByBussinespartnerId:", GetAccountIdByBussinespartnerId.statusText, "(" + GetAccountIdByBussinespartnerId.status + ")");
+        if (LOGGING) console.debug("GET GetAccountIdByBussinespartnerId:", GetAccountIdByBussinespartnerId.statusText, "(" + GetAccountIdByBussinespartnerId.status + ")");
         if (GetAccountIdByBussinespartnerId.status == 200)
             bussinespartnerData = JSON.parse(GetAccountIdByBussinespartnerId.finalText);
         else {
@@ -87,7 +89,7 @@ const getMeteringEndpoints = async () => {
     }
 
     const GetMeteringPointByAccountId = await request("GET", "https://smartmeter.netz-noe.at/orchestration/User/GetMeteringPointByAccountId?accountId=" + bussinespartnerData[0].accountId, null);
-    console.debug("GET GetMeteringPointByAccountId:", GetMeteringPointByAccountId.statusText, "(" + GetMeteringPointByAccountId.status + ")");
+    if (LOGGING) console.debug("GET GetMeteringPointByAccountId:", GetMeteringPointByAccountId.statusText, "(" + GetMeteringPointByAccountId.status + ")");
 
     if (GetMeteringPointByAccountId.status === 200)
         meteringEndpoints = JSON.parse(GetMeteringPointByAccountId.finalText);
@@ -96,24 +98,36 @@ const getMeteringEndpoints = async () => {
     return meteringEndpoints;
 }
 
-const credentials = require("./credentials.json");
-const test = async () => {
-    await login(credentials.USERNAME, credentials.PASSWORD);
+module.exports.getMeterOfDay = async (id, date) => {
+    if (!loginData.gpNummer) return { error: "GP-ID is not avalable!" }
 
-    await new Promise((res) => setTimeout(res, 10532));
+    let usable = date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate();
 
-    await getMeteringEndpoints();
+    let meteringPoint = "null";
 
-    console.log(loginData, bussinespartnerData, meteringEndpoints)
+    for (const meassuringPoints of meteringEndpoints) {
+        if (meassuringPoints.meteringPointId.includes(id)) meteringPoint = meassuringPoints.meteringPointId
+    }
+
+    if (meteringPoint.includes("null")) return { error: "Invalid metering point id!" };
+
+    const ConsumptionRecord = await request("GET", "https://smartmeter.netz-noe.at/orchestration/ConsumptionRecord/Day?meterId=" + meteringPoint + "&day=" + usable, null);
+    if (LOGGING) console.debug("GET ConsumptionRecord/Day :", ConsumptionRecord.statusText, "(" + ConsumptionRecord.status + ")");
+
+    let result = "";
+    if (ConsumptionRecord.status === 200)
+        result = JSON.parse(ConsumptionRecord.finalText);
+    else result = ConsumptionRecord.finalText;
+
+    return result;
 
 }
 
+module.exports.logout = async () => {
+    if (!loginData.gpNummer) return { error: "GP-ID is not avalable!" }
 
-// run test
-setTimeout(async () => { console.log("Running tests"); let a = Date.now(); await test(); let b = Date.now(); let diff = b - a; console.log("Took " + diff + "ms to run tests!") }, 1);
-// Print final cookies after 20s
-{
-    let url = "https://smartmeter.netz-noe.at/orchestration/";
-    let cookieAddress = url.split(":")[0] + "://" + url.split("/")[2] + "/";
-    setTimeout(() => console.log("Final Cookies:", basicCookieManager.getRequestCookies(cookieAddress)), 20000);
+    const Logout = await request("GET", "https://smartmeter.netz-noe.at/orchestration/Authentication/Logout", null);
+    if (LOGGING) console.debug("GET Logout/Day :", Logout.statusText, "(" + Logout.status + ")");
+
+    loginData = undefined; bussinespartnerData = undefined, meteringEndpoints = undefined;
 }
