@@ -1,0 +1,27 @@
+{
+  "name": "smartmeter-noe-api",
+  "version": "0.0.1",
+  "description": "A Node API for the Lower Austria Smart Meter service",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RadSton/SmartMeter-API.git"
+  },
+  "keywords": [
+    "SmartMeter",
+    "Austria",
+    "LowerAustria"
+  ],
+  "author": "radston12",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/RadSton/SmartMeter-API/issues"
+  },
+  "homepage": "https://github.com/RadSton/SmartMeter-API#readme",
+  "dependencies": {
+    "node-fetch": "^2.6.9"
+  }
+}
