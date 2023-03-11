@@ -24,7 +24,7 @@ const _request = (method, url, cookies, body) => {
         "method": method
     });
 }
-module.exports.request = (method, url, body) => {
+const request = (method, url, body) => {
     let cookieAddress = url.split(":")[0] + "://" + url.split("/")[2] + "/";
 
     return new Promise((res, rej) => {
