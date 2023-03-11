@@ -216,7 +216,7 @@
     "ftmReadOutProvider": bool, // unknown
     "communityProductionFacility": bool, // is official power generation facility
     "hasFtmMeterData": bool, // unknown
-    "validFrom": "", // unknown; some date from 2003
+    "validFrom": "", // date of first usage
     "smartMeterType": "", // unknown
     "locked": bool // unknown
   },
